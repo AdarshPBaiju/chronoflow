@@ -1,4 +1,5 @@
 import client from './client'
+import type { Session } from './sessions'
 
 export interface Task {
   id: number
@@ -12,6 +13,10 @@ export interface Task {
   is_archived: boolean
   today_time: number
   total_time: number
+  task_start: string | null
+  task_end: string | null
+  is_active: boolean
+  sessions: Session[]
   movements: TaskMovement[]
   created_at: string
   updated_at: string

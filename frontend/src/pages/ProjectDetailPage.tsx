@@ -3,13 +3,15 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { getProject, updateProject, deleteProject, type Project } from '../api/projects'
 import { getTimeByStage } from '../api/analytics'
 import { createColumn, getColumnsByProject, type WorkflowColumn } from '../api/workflows'
-import { createTask } from '../api/tasks'
+import { createTask, getTasks, type Task } from '../api/tasks'
+import { useTimerStore } from '../stores/timerStore'
 import KanbanBoard from '../components/KanbanBoard'
 import TaskDrawer from '../components/TaskDrawer'
 import TimeDisplay from '../components/TimeDisplay'
 import { useUIStore } from '../stores/uiStore'
 
 type Tab = 'overview' | 'board' | 'reports' | 'settings'
+type ActiveForm = 'task' | 'column' | 'manual' | null
 
 export default function ProjectDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -18,27 +20,34 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null)
   const [activeTab, setActiveTab] = useState<Tab>('overview')
   const [stageData, setStageData] = useState<{ name: string; duration_seconds: number; color: string }[]>([])
-  const [showNewTask, setShowNewTask] = useState(false)
+  const [activeForm, setActiveForm] = useState<ActiveForm>(null)
   const [taskTitle, setTaskTitle] = useState('')
   const [taskColumn, setTaskColumn] = useState<number | ''>('')
   const [taskPriority, setTaskPriority] = useState('medium')
   const [columns, setColumns] = useState<WorkflowColumn[]>([])
-  const [showNewColumn, setShowNewColumn] = useState(false)
   const [colName, setColName] = useState('')
-  const [showManualEntry, setShowManualEntry] = useState(false)
   const [manualStart, setManualStart] = useState('')
   const [manualEnd, setManualEnd] = useState('')
   const [manualNote, setManualNote] = useState('')
   const [manualTask, setManualTask] = useState<number | ''>('')
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [allTasks, setAllTasks] = useState<Task[]>([])
 
+  const elapsed = useTimerStore((s) => s.elapsed)
+  const isRunning = useTimerStore((s) => s.isRunning)
+  const activeSession = useTimerStore((s) => s.activeSession)
   const { taskDrawerOpen, selectedTaskId, closeTaskDrawer } = useUIStore()
+
+  const isProjectActive = isRunning && activeSession?.project_id === projectId
+  const liveTotal = (project?.total_time ?? 0) + (isProjectActive ? elapsed : 0)
 
   useEffect(() => {
     if (!projectId) return
     getProject(projectId).then(setProject)
     getTimeByStage(projectId).then(setStageData)
     getColumnsByProject(projectId).then(setColumns)
-  }, [projectId])
+    getTasks(projectId).then(setAllTasks)
+  }, [projectId, refreshTrigger])
 
   const handleDelete = async () => {
     if (confirm('Delete this project?')) {
@@ -56,6 +65,18 @@ export default function ProjectDetailPage() {
     }
   }
 
+  const resetForms = () => {
+    setActiveForm(null)
+    setTaskTitle('')
+    setTaskColumn('')
+    setTaskPriority('medium')
+    setColName('')
+    setManualStart('')
+    setManualEnd('')
+    setManualNote('')
+    setManualTask('')
+  }
+
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
     await createTask({
@@ -64,10 +85,8 @@ export default function ProjectDetailPage() {
       title: taskTitle,
       priority: taskPriority,
     })
-    setShowNewTask(false)
-    setTaskTitle('')
-    setTaskColumn('')
-    setTaskPriority('medium')
+    resetForms()
+    setRefreshTrigger((prev) => prev + 1)
   }
 
   const handleCreateColumn = async (e: React.FormEvent) => {
@@ -75,8 +94,8 @@ export default function ProjectDetailPage() {
     const pos = columns.length
     const col = await createColumn({ project: projectId, name: colName, position: pos })
     setColumns((prev) => [...prev, col])
-    setShowNewColumn(false)
-    setColName('')
+    resetForms()
+    setRefreshTrigger((prev) => prev + 1)
   }
 
   const handleManualEntry = async (e: React.FormEvent) => {
@@ -85,18 +104,12 @@ export default function ProjectDetailPage() {
     const client = (await import('../api/client')).default
     await client.post('/sessions/', {
       task: manualTask,
-      start_time: new Date(`${manualStart}`).toISOString(),
-      end_time: new Date(`${manualEnd}`).toISOString(),
+      start_time: new Date(manualStart).toISOString(),
+      end_time: new Date(manualEnd).toISOString(),
       note: manualNote,
     })
-    setShowManualEntry(false)
-    setManualStart('')
-    setManualEnd('')
-    setManualNote('')
-    setManualTask('')
+    resetForms()
   }
-
-  const totalSeconds = project?.total_time ?? 0
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
@@ -112,7 +125,7 @@ export default function ProjectDetailPage() {
           {project && <div className="w-4 h-4 rounded-full" style={{ backgroundColor: project.color }} />}
           <h1 className="text-2xl font-bold">{project?.name}</h1>
         </div>
-        <TimeDisplay seconds={totalSeconds} />
+        <TimeDisplay seconds={liveTotal} />
       </div>
 
       <div className="flex gap-4 border-b mb-4">
@@ -120,7 +133,11 @@ export default function ProjectDetailPage() {
           <button
             key={tab.key}
             onClick={() => setActiveTab(tab.key)}
-            className={`pb-2 text-sm font-medium ${activeTab === tab.key ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`pb-2 text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? 'text-indigo-600 border-b-2 border-indigo-600'
+                : 'text-gray-500 hover:text-gray-700'
+            }`}
           >
             {tab.label}
           </button>
@@ -132,140 +149,160 @@ export default function ProjectDetailPage() {
           <div className="grid grid-cols-2 gap-4 mb-6">
             <div className="bg-white rounded-lg shadow p-4">
               <p className="text-sm text-gray-500">Total Time</p>
-              <TimeDisplay seconds={totalSeconds} />
+              <TimeDisplay seconds={liveTotal} />
             </div>
           </div>
 
-          <h2 className="font-semibold mb-2">Time By Stage</h2>
+          <h2 className="font-semibold mb-2">Stages</h2>
           <div className="space-y-2 mb-6">
-            {stageData.map((s) => (
-              <div key={s.name} className="bg-white rounded-lg shadow p-3 flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                  <span>{s.name}</span>
+            {stageData.map((s) => {
+              const count = allTasks.filter((t) => t.column_name === s.name).length
+              return (
+                <div key={s.name} className="bg-white rounded-lg shadow p-3 flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    <span>{s.name}</span>
+                  </div>
+                  <span className="text-sm text-gray-500 font-medium">{count} {count === 1 ? 'task' : 'tasks'}</span>
                 </div>
-                <TimeDisplay seconds={s.duration_seconds} />
-              </div>
-            ))}
+              )
+            })}
           </div>
-
-          <h2 className="font-semibold mb-2">Recent Activity</h2>
         </div>
       )}
 
       {activeTab === 'board' && (
         <div>
           <div className="flex gap-2 mb-4">
-            <button
-              onClick={() => setShowNewTask(true)}
-              className="bg-indigo-500 text-white px-4 py-2 rounded text-sm"
-            >
-              + New Task
-            </button>
-            <button
-              onClick={() => setShowNewColumn(true)}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm"
-            >
-              + New Column
-            </button>
-            <button
-              onClick={() => setShowManualEntry(true)}
-              className="bg-gray-200 text-gray-700 px-4 py-2 rounded text-sm"
-            >
-              + Manual Entry
-            </button>
+            {activeForm === 'task' ? (
+              <button onClick={resetForms} className="text-gray-500 text-sm px-3 py-2">Close</button>
+            ) : (
+              <button
+                onClick={() => setActiveForm('task')}
+                className="bg-indigo-500 text-white px-4 py-2 rounded text-sm hover:bg-indigo-600 transition-colors"
+              >
+                + New Task
+              </button>
+            )}
+            {activeForm === 'column' ? (
+              <button onClick={resetForms} className="text-gray-500 text-sm px-3 py-2">Close</button>
+            ) : (
+              <button
+                onClick={() => setActiveForm('column')}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-200 transition-colors"
+              >
+                + New Column
+              </button>
+            )}
+            {activeForm === 'manual' ? (
+              <button onClick={resetForms} className="text-gray-500 text-sm px-3 py-2">Close</button>
+            ) : (
+              <button
+                onClick={() => setActiveForm('manual')}
+                className="bg-gray-100 text-gray-700 px-4 py-2 rounded text-sm hover:bg-gray-200 transition-colors"
+              >
+                + Manual Entry
+              </button>
+            )}
           </div>
 
-          {showNewTask && (
-            <form onSubmit={handleCreateTask} className="bg-white rounded-lg shadow p-4 mb-4">
-              <input
-                placeholder="Task title"
-                value={taskTitle}
-                onChange={(e) => setTaskTitle(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
-                required
-              />
-              <select
-                value={taskColumn}
-                onChange={(e) => setTaskColumn(Number(e.target.value) || '')}
-                className="w-full border rounded px-3 py-2 mb-2"
-              >
-                <option value="">No column</option>
-                {columns.map((c) => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              <select
-                value={taskPriority}
-                onChange={(e) => setTaskPriority(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
-              >
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="critical">Critical</option>
-              </select>
+          {activeForm === 'task' && (
+            <form onSubmit={handleCreateTask} className="bg-white rounded-lg shadow p-4 mb-4 border border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">New Task</h3>
+              <div className="grid grid-cols-3 gap-3 mb-3">
+                <input
+                  placeholder="Task title"
+                  value={taskTitle}
+                  onChange={(e) => setTaskTitle(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+                  required
+                />
+                <select
+                  value={taskColumn}
+                  onChange={(e) => setTaskColumn(Number(e.target.value) || '')}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">No column</option>
+                  {columns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+                <select
+                  value={taskPriority}
+                  onChange={(e) => setTaskPriority(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
               <div className="flex gap-2">
-                <button type="submit" className="bg-indigo-500 text-white px-4 py-2 rounded text-sm">Create</button>
-                <button type="button" onClick={() => setShowNewTask(false)} className="text-gray-500 text-sm">Cancel</button>
+                <button type="submit" className="bg-indigo-500 text-white px-4 py-1.5 rounded text-sm hover:bg-indigo-600">Create</button>
+                <button type="button" onClick={resetForms} className="text-gray-500 text-sm px-3 py-1.5">Cancel</button>
               </div>
             </form>
           )}
 
-          {showNewColumn && (
-            <form onSubmit={handleCreateColumn} className="bg-white rounded-lg shadow p-4 mb-4">
+          {activeForm === 'column' && (
+            <form onSubmit={handleCreateColumn} className="bg-white rounded-lg shadow p-4 mb-4 border border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">New Column</h3>
               <input
                 placeholder="Column name"
                 value={colName}
                 onChange={(e) => setColName(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
+                className="w-full border rounded-lg px-3 py-2 mb-3 text-sm focus:ring-2 focus:ring-indigo-500"
                 required
               />
               <div className="flex gap-2">
-                <button type="submit" className="bg-indigo-500 text-white px-4 py-2 rounded text-sm">Create</button>
-                <button type="button" onClick={() => setShowNewColumn(false)} className="text-gray-500 text-sm">Cancel</button>
+                <button type="submit" className="bg-indigo-500 text-white px-4 py-1.5 rounded text-sm hover:bg-indigo-600">Create</button>
+                <button type="button" onClick={resetForms} className="text-gray-500 text-sm px-3 py-1.5">Cancel</button>
               </div>
             </form>
           )}
 
-          {showManualEntry && (
-            <form onSubmit={handleManualEntry} className="bg-white rounded-lg shadow p-4 mb-4">
-              <select
-                value={manualTask}
-                onChange={(e) => setManualTask(Number(e.target.value) || '')}
-                className="w-full border rounded px-3 py-2 mb-2"
-                required
-              >
-                <option value="">Select task</option>
-              </select>
-              <input
-                type="datetime-local"
-                value={manualStart}
-                onChange={(e) => setManualStart(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
-                required
-              />
-              <input
-                type="datetime-local"
-                value={manualEnd}
-                onChange={(e) => setManualEnd(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
-                required
-              />
-              <input
-                placeholder="Note (optional)"
-                value={manualNote}
-                onChange={(e) => setManualNote(e.target.value)}
-                className="w-full border rounded px-3 py-2 mb-2"
-              />
+          {activeForm === 'manual' && (
+            <form onSubmit={handleManualEntry} className="bg-white rounded-lg shadow p-4 mb-4 border border-gray-100">
+              <h3 className="text-sm font-semibold text-gray-700 mb-3">Manual Entry</h3>
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                <select
+                  value={manualTask}
+                  onChange={(e) => setManualTask(Number(e.target.value) || '')}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                  required
+                >
+                  <option value="">Select task</option>
+                </select>
+                <input
+                  placeholder="Note (optional)"
+                  value={manualNote}
+                  onChange={(e) => setManualNote(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                />
+                <input
+                  type="datetime-local"
+                  value={manualStart}
+                  onChange={(e) => setManualStart(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+                <input
+                  type="datetime-local"
+                  value={manualEnd}
+                  onChange={(e) => setManualEnd(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+              </div>
               <div className="flex gap-2">
-                <button type="submit" className="bg-indigo-500 text-white px-4 py-2 rounded text-sm">Save</button>
-                <button type="button" onClick={() => setShowManualEntry(false)} className="text-gray-500 text-sm">Cancel</button>
+                <button type="submit" className="bg-indigo-500 text-white px-4 py-1.5 rounded text-sm hover:bg-indigo-600">Save</button>
+                <button type="button" onClick={resetForms} className="text-gray-500 text-sm px-3 py-1.5">Cancel</button>
               </div>
             </form>
           )}
 
-          <KanbanBoard projectId={projectId} />
+          <KanbanBoard projectId={projectId} refreshTrigger={refreshTrigger} />
         </div>
       )}
 

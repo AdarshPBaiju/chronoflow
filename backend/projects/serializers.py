@@ -27,12 +27,21 @@ class ProjectSerializer(serializers.ModelSerializer):
 
     def get_total_time(self, obj):
         from django.db.models import Sum
-
+        from django.utils import timezone
+        from django.db.models import Q
         from tasks.models import Task
+        from sessions.models import Session
 
-        total = (
-            Task.objects.filter(project=obj, sessions__isnull=False)
-            .distinct()
-            .aggregate(total=Sum("sessions__duration_seconds"))["total"]
-        )
-        return total or 0
+        completed = Session.objects.filter(
+            task__project=obj, end_time__isnull=False
+        ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+
+        active = Session.objects.filter(
+            task__project=obj, end_time__isnull=True
+        ).first()
+        active_seconds = 0
+        if active:
+            delta = timezone.now() - active.start_time
+            active_seconds = int(delta.total_seconds())
+
+        return completed + active_seconds

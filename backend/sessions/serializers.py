@@ -12,6 +12,7 @@ class SessionSerializer(serializers.ModelSerializer):
     project_color = serializers.CharField(
         source="task.project.color", read_only=True
     )
+    project_id = serializers.IntegerField(source="task.project.id", read_only=True)
 
     class Meta:
         model = Session
@@ -19,6 +20,7 @@ class SessionSerializer(serializers.ModelSerializer):
             "id",
             "task",
             "task_title",
+            "project_id",
             "project_name",
             "project_color",
             "start_time",

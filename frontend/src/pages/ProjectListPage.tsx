@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { getProjects, createProject, type Project } from '../api/projects'
+import { useTimerStore } from '../stores/timerStore'
 import TimeDisplay from '../components/TimeDisplay'
 
 export default function ProjectListPage() {
@@ -10,6 +11,9 @@ export default function ProjectListPage() {
   const [description, setDescription] = useState('')
   const [color, setColor] = useState('#6366f1')
   const navigate = useNavigate()
+  const elapsed = useTimerStore((s) => s.elapsed)
+  const isRunning = useTimerStore((s) => s.isRunning)
+  const activeSession = useTimerStore((s) => s.activeSession)
 
   useEffect(() => {
     getProjects().then(setProjects)
@@ -73,23 +77,28 @@ export default function ProjectListPage() {
       )}
 
       <div className="grid grid-cols-3 gap-4">
-        {projects.map((p) => (
-          <div
-            key={p.id}
-            onClick={() => navigate(`/projects/${p.id}`)}
-            className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow"
-          >
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
-              <h3 className="font-semibold">{p.name}</h3>
+        {projects.map((p) => {
+          const isActive = isRunning && activeSession?.project_id === p.id
+          const liveTime = p.total_time + (isActive ? elapsed : 0)
+          return (
+            <div
+              key={p.id}
+              onClick={() => navigate(`/projects/${p.id}`)}
+              className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow"
+            >
+              <div className="flex items-center gap-2 mb-2">
+                <div className="w-3 h-3 rounded-full" style={{ backgroundColor: p.color }} />
+                <h3 className="font-semibold">{p.name}</h3>
+                {isActive && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
+              </div>
+              <p className="text-sm text-gray-500 mb-1">{p.task_count} Tasks</p>
+              <TimeDisplay seconds={liveTime} />
+              <span className={`text-xs px-2 py-0.5 rounded mt-2 inline-block ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                {p.status}
+              </span>
             </div>
-            <p className="text-sm text-gray-500 mb-1">{p.task_count} Tasks</p>
-            <TimeDisplay seconds={p.total_time} />
-            <span className={`text-xs px-2 py-0.5 rounded mt-2 inline-block ${p.status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
-              {p.status}
-            </span>
-          </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )

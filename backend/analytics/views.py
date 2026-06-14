@@ -107,8 +107,32 @@ class DashboardTotalsView(generics.GenericAPIView):
             start_time__month=today.month,
         ).aggregate(total=Sum("duration_seconds"))["total"] or 0
 
+        year_seconds = sessions_qs.filter(
+            start_time__year=today.year,
+        ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+
+        projects = Project.objects.filter(user=request.user)
+        projects_data = []
+        for proj in projects:
+            ps = sessions_qs.filter(task__project=proj)
+            p_today = ps.filter(start_time__date=today).aggregate(t=Sum("duration_seconds"))["t"] or 0
+            p_week = ps.filter(start_time__date__gte=start_of_week).aggregate(t=Sum("duration_seconds"))["t"] or 0
+            p_month = ps.filter(start_time__year=today.year, start_time__month=today.month).aggregate(t=Sum("duration_seconds"))["t"] or 0
+            p_year = ps.filter(start_time__year=today.year).aggregate(t=Sum("duration_seconds"))["t"] or 0
+            projects_data.append({
+                "id": proj.id,
+                "name": proj.name,
+                "color": proj.color,
+                "today": p_today,
+                "week": p_week,
+                "month": p_month,
+                "year": p_year,
+            })
+
         return Response({
             "today_seconds": today_seconds,
             "week_seconds": week_seconds,
             "month_seconds": month_seconds,
+            "year_seconds": year_seconds,
+            "projects": projects_data,
         })

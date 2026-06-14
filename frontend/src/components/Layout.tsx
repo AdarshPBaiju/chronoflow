@@ -1,6 +1,9 @@
+import { useEffect } from 'react'
 import { Outlet, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useUIStore } from '../stores/uiStore'
+import { useTimerStore } from '../stores/timerStore'
+import { formatDurationA } from '../lib/time'
 import TimerWidget from './TimerWidget'
 import client from '../api/client'
 
@@ -9,6 +12,16 @@ export default function Layout() {
   const sidebarOpen = useUIStore((s) => s.sidebarOpen)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
   const navigate = useNavigate()
+  const isRunning = useTimerStore((s) => s.isRunning)
+  const elapsed = useTimerStore((s) => s.elapsed)
+
+  useEffect(() => {
+    if (isRunning) {
+      document.title = `⏱ ${formatDurationA(elapsed)} - ChronoFlow`
+    } else {
+      document.title = 'ChronoFlow'
+    }
+  }, [isRunning, elapsed])
 
   const handleLogout = async () => {
     await client.post('/auth/logout/')
@@ -27,6 +40,12 @@ export default function Layout() {
           </button>
           <button onClick={() => navigate('/projects')} className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
             {sidebarOpen ? 'Projects' : 'P'}
+          </button>
+          <button onClick={() => navigate('/timer')} className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            {sidebarOpen ? 'Timer' : 'T'}
+          </button>
+          <button onClick={() => navigate('/reports')} className="w-full text-left px-3 py-2 rounded hover:bg-gray-100 text-sm">
+            {sidebarOpen ? 'Reports' : 'R'}
           </button>
           {sidebarOpen && (
             <>

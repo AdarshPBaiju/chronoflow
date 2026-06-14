@@ -8,6 +8,7 @@ import DashboardPage from './pages/DashboardPage'
 import ProjectListPage from './pages/ProjectListPage'
 import ProjectDetailPage from './pages/ProjectDetailPage'
 import ReportsPage from './pages/ReportsPage'
+import TimerPage from './pages/TimerPage'
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const user = useAuthStore((s) => s.user)
@@ -44,6 +45,7 @@ export default function App() {
           <Route path="projects" element={<ProjectListPage />} />
           <Route path="projects/:id" element={<ProjectDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
+          <Route path="timer" element={<TimerPage />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

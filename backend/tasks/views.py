@@ -14,7 +14,10 @@ class TaskViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         qs = Task.objects.filter(
             project__user=self.request.user
-        ).select_related("column", "project").prefetch_related("movements", "movements__from_column", "movements__to_column")
+        ).select_related("column", "project").prefetch_related(
+            "movements", "movements__from_column", "movements__to_column",
+            "sessions", "sessions__task", "sessions__task__project",
+        )
         project_id = self.request.query_params.get("project_id")
         column_id = self.request.query_params.get("column_id")
         if project_id:

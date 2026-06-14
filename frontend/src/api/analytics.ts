@@ -4,6 +4,18 @@ export interface DashboardTotals {
   today_seconds: number
   week_seconds: number
   month_seconds: number
+  year_seconds: number
+  projects: ProjectTime[]
+}
+
+export interface ProjectTime {
+  id: number
+  name: string
+  color: string
+  today: number
+  week: number
+  month: number
+  year: number
 }
 
 export async function getDashboardTotals(): Promise<DashboardTotals> {

@@ -13,46 +13,68 @@ interface TimerState {
   cleanup: () => void
 }
 
-export const useTimerStore = create<TimerState>((set, get) => ({
-  activeSession: null,
-  isRunning: false,
-  elapsed: 0,
-  intervalId: null,
-  fetchActive: async () => {
-    const { active, session } = await getActiveSession()
-    if (active && session) {
-      const elapsed = Math.floor(
-        (Date.now() - new Date(session.start_time).getTime()) / 1000
-      )
-      set({ activeSession: session, isRunning: true, elapsed })
-      const id = setInterval(() => {
-        const s = get()
-        if (s.isRunning) set({ elapsed: s.elapsed + 1 })
-      }, 1000)
-      set({ intervalId: id })
-    }
-  },
-  start: async (taskId) => {
-    const session = await startTimer(taskId)
-    set({ activeSession: session, isRunning: true, elapsed: 0 })
+export const useTimerStore = create<TimerState>((set, get) => {
+  const startInterval = () => {
+    const { intervalId } = get()
+    if (intervalId) clearInterval(intervalId)
     const id = setInterval(() => {
       const s = get()
       if (s.isRunning) set({ elapsed: s.elapsed + 1 })
     }, 1000)
     set({ intervalId: id })
-  },
-  stop: async () => {
-    const { intervalId } = get()
-    if (intervalId) clearInterval(intervalId)
-    await stopTimer()
-    set({ activeSession: null, isRunning: false, elapsed: 0, intervalId: null })
-  },
-  tick: () => {
-    const s = get()
-    if (s.isRunning) set({ elapsed: s.elapsed + 1 })
-  },
-  cleanup: () => {
-    const { intervalId } = get()
-    if (intervalId) clearInterval(intervalId)
-  },
-}))
+  }
+
+  const computeElapsed = (startTime: string): number => {
+    return Math.floor(
+      (Date.now() - new Date(startTime).getTime()) / 1000
+    )
+  }
+
+  return {
+    activeSession: null,
+    isRunning: false,
+    elapsed: 0,
+    intervalId: null,
+    fetchActive: async () => {
+      try {
+        const { active, session } = await getActiveSession()
+        if (active && session) {
+          const elapsed = computeElapsed(session.start_time)
+          set({ activeSession: session, isRunning: true, elapsed })
+          startInterval()
+        }
+      } catch {
+        // silently fail
+      }
+    },
+    start: async (taskId) => {
+      try {
+        const session = await startTimer(taskId)
+        const elapsed = computeElapsed(session.start_time)
+        set({ activeSession: session, isRunning: true, elapsed })
+        startInterval()
+      } catch {
+        const { active, session } = await getActiveSession()
+        if (active && session) {
+          const elapsed = computeElapsed(session.start_time)
+          set({ activeSession: session, isRunning: true, elapsed })
+          startInterval()
+        }
+      }
+    },
+    stop: async () => {
+      const { intervalId } = get()
+      if (intervalId) clearInterval(intervalId)
+      await stopTimer()
+      set({ activeSession: null, isRunning: false, elapsed: 0, intervalId: null })
+    },
+    tick: () => {
+      const s = get()
+      if (s.isRunning) set({ elapsed: s.elapsed + 1 })
+    },
+    cleanup: () => {
+      const { intervalId } = get()
+      if (intervalId) clearInterval(intervalId)
+    },
+  }
+})
