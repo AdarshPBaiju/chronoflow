@@ -21,6 +21,7 @@ class Task(models.Model):
         related_name="tasks",
     )
     title = models.CharField(max_length=255)
+    code = models.CharField(max_length=16, unique=True, null=True, blank=True)
     description = models.TextField(blank=True)
     priority = models.CharField(
         max_length=16, choices=PRIORITY_CHOICES, default="medium"
@@ -29,6 +30,18 @@ class Task(models.Model):
     is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            import random
+            ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
+            while True:
+                rand_part = ''.join(random.choices(ALPHABET, k=6))
+                code = f"TSK-{rand_part}"
+                if not Task.objects.filter(code=code).exists():
+                    self.code = code
+                    break
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ["-created_at"]

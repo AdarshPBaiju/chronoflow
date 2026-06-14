@@ -11,6 +11,7 @@ class ProjectSerializer(serializers.ModelSerializer):
         model = Project
         fields = [
             "id",
+            "code",
             "name",
             "description",
             "color",
@@ -20,7 +21,7 @@ class ProjectSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "code", "created_at", "updated_at"]
 
     def get_task_count(self, obj):
         return obj.tasks.count()
@@ -28,8 +29,6 @@ class ProjectSerializer(serializers.ModelSerializer):
     def get_total_time(self, obj):
         from django.db.models import Sum
         from django.utils import timezone
-        from django.db.models import Q
-        from tasks.models import Task
         from sessions.models import Session
 
         completed = Session.objects.filter(

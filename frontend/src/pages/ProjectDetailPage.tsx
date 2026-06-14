@@ -4,10 +4,10 @@ import { getProject, updateProject, deleteProject, type Project } from '../api/p
 import { getTimeByStage } from '../api/analytics'
 import { createColumn, getColumnsByProject, type WorkflowColumn } from '../api/workflows'
 import { createTask, getTasks, type Task } from '../api/tasks'
-import { getProjectReport, type ProjectReport } from '../api/reports'
+import { getProjectReport, getDetailedReport, type ProjectReport } from '../api/reports'
+import { generatePdfReport } from '../lib/generatePdfReport'
 import { useTimerStore } from '../stores/timerStore'
 import KanbanBoard from '../components/KanbanBoard'
-import TaskDrawer from '../components/TaskDrawer'
 import TimeDisplay from '../components/TimeDisplay'
 import { useUIStore } from '../stores/uiStore'
 import { formatDurationA } from '../lib/time'
@@ -38,12 +38,13 @@ export default function ProjectDetailPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [allTasks, setAllTasks] = useState<Task[]>([])
   const [projectReport, setProjectReport] = useState<ProjectReport | null>(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const elapsed = useTimerStore((s) => s.elapsed)
   const isRunning = useTimerStore((s) => s.isRunning)
   const activeSession = useTimerStore((s) => s.activeSession)
   const updateVersion = useTimerStore((s) => s.updateVersion)
-  const { taskDrawerOpen, selectedTaskId, openTaskDrawer, closeTaskDrawer } = useUIStore()
+  const { openTaskDrawer } = useUIStore()
 
   const isProjectActive = isRunning && activeSession?.project_id === projectId
   const liveTotal = (project?.total_time ?? 0) + (isProjectActive ? elapsed : 0)
@@ -147,32 +148,6 @@ export default function ProjectDetailPage() {
     requestRefresh()
   }
 
-  const handleExportData = async () => {
-    const report = projectReport ?? await getProjectReport(projectId)
-    const exportPayload = {
-      exported_at: new Date().toISOString(),
-      project,
-      columns,
-      tasks: allTasks,
-      report,
-    }
-    const blob = new Blob([JSON.stringify(exportPayload, null, 2)], {
-      type: 'application/json',
-    })
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    const safeName = (project?.name || `project-${projectId}`)
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '')
-    link.href = url
-    link.download = `${safeName || `project-${projectId}`}-export.json`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
-  }
-
   const totalSeconds = liveTotal
   const decimalHours = (totalSeconds / 3600).toFixed(2)
   const totalMinutes = Math.floor(totalSeconds / 60)
@@ -180,6 +155,16 @@ export default function ProjectDetailPage() {
   const activeTasks = allTasks.filter((t) => t.is_active || (t.sessions && t.sessions.some((s) => !s.end_time))).length
   const completedTasks = allTasks.filter((t) => t.column_name && columns.find((c) => c.name === t.column_name && c.is_completed)).length
   const completedPct = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0
+
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const detailed = await getDetailedReport({ project_id: projectId })
+      await generatePdfReport(detailed)
+    } finally {
+      setExportingPdf(false)
+    }
+  }
 
   const tabs: { key: Tab; label: string }[] = [
     { key: 'overview', label: 'Overview' },
@@ -190,7 +175,7 @@ export default function ProjectDetailPage() {
   ]
 
   return (
-    <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-4">
       {/* Workspace Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col">
@@ -206,7 +191,7 @@ export default function ProjectDetailPage() {
             </span>
           </h1>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 no-print">
           {/* Tab buttons */}
           <div className="flex bg-white border border-[#c6c6cd] rounded-lg p-1">
             {tabs.map((tab) => (
@@ -258,11 +243,12 @@ export default function ProjectDetailPage() {
             </div>
           )}
           <button
-            onClick={handleExportData}
-            className="bg-white border border-[#c6c6cd] px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] text-black flex items-center gap-2 rounded-lg hover:bg-[#eceef1] transition-all"
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
+            className="bg-white border border-[#c6c6cd] px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] text-black flex items-center gap-2 rounded-lg hover:bg-[#eceef1] disabled:opacity-50 transition-all"
           >
-            <span className="material-symbols-outlined text-[18px]">ios_share</span>
-            Export Data
+            <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+            {exportingPdf ? 'Generating...' : 'Export as PDF'}
           </button>
         </div>
       </div>
@@ -583,7 +569,8 @@ export default function ProjectDetailPage() {
       )}
 
       {activeTab === 'reports' && (
-        <div className="grid grid-cols-12 gap-4">
+        <div className="col-span-12 grid grid-cols-12 gap-4">
+
           <div className="col-span-12 lg:col-span-4 bg-white border border-[#c6c6cd] rounded-lg p-5">
             <p className="text-[11px] leading-[14px] tracking-[0.03em] font-semibold text-[#45464d] uppercase mb-1">
               Project Total
@@ -607,7 +594,7 @@ export default function ProjectDetailPage() {
               {(projectReport?.stage_totals ?? []).map((stage) => (
                 <div key={stage.name} className="px-5 py-4 flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color || '#c6c6cd' }} />
+                     <span className="w-3 h-3 rounded-full" style={{ backgroundColor: stage.color || '#c6c6cd' }} />
                     <span className="text-[14px] leading-[20px] font-semibold text-black">{stage.name}</span>
                   </div>
                   <TimeDisplay seconds={stage.duration_seconds} />
@@ -637,7 +624,10 @@ export default function ProjectDetailPage() {
                     className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-[#f7f9fc] transition-colors"
                   >
                     <div>
-                      <p className="text-[14px] leading-[20px] font-semibold text-black">{task.title}</p>
+                      <p className="text-[14px] leading-[20px] font-semibold text-black">
+                        {task.task_code ? <span className="font-mono text-xs text-[#0051d5] mr-1.5">{task.task_code}</span> : null}
+                        {task.title}
+                      </p>
                       <p className="text-[12px] leading-[16px] text-[#45464d]">{task.column_name || 'No column'}</p>
                     </div>
                     <TimeDisplay seconds={taskSeconds} />
@@ -692,15 +682,6 @@ export default function ProjectDetailPage() {
             <button onClick={handleDelete} className="bg-red-500 text-white px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] rounded-lg hover:brightness-110">Delete</button>
           </div>
         </div>
-      )}
-
-      {taskDrawerOpen && selectedTaskId && (
-        <TaskDrawer
-          projectId={projectId}
-          taskId={selectedTaskId}
-          onClose={closeTaskDrawer}
-          onUpdate={requestRefresh}
-        />
       )}
     </div>
   )

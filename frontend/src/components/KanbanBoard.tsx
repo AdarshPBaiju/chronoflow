@@ -50,7 +50,7 @@ function TaskCard({ task, index }: { task: Task; index: number }) {
                 </span>
               )}
             </div>
-            <span className="text-[11px] text-[#76777d]">#{task.id}</span>
+            <span className="text-[11px] text-[#76777d] font-mono">{task.code || `#${task.id}`}</span>
           </div>
           <p
             className="font-medium text-sm mb-2 cursor-pointer hover:text-[#0051d5] line-clamp-2"

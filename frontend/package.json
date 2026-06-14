@@ -13,6 +13,8 @@
     "@hello-pangea/dnd": "^18.0.1",
     "@tailwindcss/vite": "^4.3.1",
     "axios": "^1.17.0",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.8",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-router-dom": "^7.17.0",

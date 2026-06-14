@@ -3,6 +3,7 @@ import client from './client'
 export interface ProjectReport {
   project: {
     id: number
+    code?: string
     name: string
     color: string
     status: string
@@ -16,6 +17,7 @@ export interface ProjectReport {
   }[]
   task_totals: {
     task_id: number
+    task_code?: string
     title: string
     column_id: number | null
     column_name: string
@@ -51,5 +53,61 @@ export async function getMonthlyReport(year?: number, month?: number) {
 
 export async function getProjectReport(projectId: number): Promise<ProjectReport> {
   const { data } = await client.get(`/reports/projects/${projectId}/`)
+  return data
+}
+
+export interface DetailedReport {
+  generated_at: string
+  period: {
+    start_date: string
+    end_date: string
+  }
+  summary: {
+    total_seconds: number
+    total_sessions: number
+    total_projects: number
+    total_tasks: number
+  }
+  projects: {
+    id: number
+    name: string
+    code: string | null
+    color: string
+    total_seconds: number
+    task_count: number
+    stages: {
+      name: string
+      color: string
+      duration_seconds: number
+    }[]
+    tasks: {
+      task_id: number
+      task_code: string | null
+      title: string
+      stage: string
+      duration_seconds: number
+      session_count: number
+      sessions: {
+        id: number
+        start_time: string
+        end_time: string
+        duration_seconds: number | null
+        note: string
+      }[]
+    }[]
+  }[]
+  daily_totals: {
+    date: string
+    duration_seconds: number
+    session_count: number
+  }[]
+}
+
+export async function getDetailedReport(params?: {
+  start_date?: string
+  end_date?: string
+  project_id?: number
+}): Promise<DetailedReport> {
+  const { data } = await client.get('/reports/detailed/', { params })
   return data
 }

@@ -1,8 +1,11 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { Outlet, useNavigate, useLocation } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 import { useTimerStore } from '../stores/timerStore'
 import { formatDurationA } from '../lib/time'
+import { useUIStore } from '../stores/uiStore'
+import { searchTasks, type Task } from '../api/tasks'
+import TaskDrawer from './TaskDrawer'
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: 'dashboard' },
@@ -20,6 +23,11 @@ export default function Layout() {
   const activeSession = useTimerStore((s) => s.activeSession)
   const fetchActive = useTimerStore((s) => s.fetchActive)
 
+  const { taskDrawerOpen, selectedTaskId, openTaskDrawer, closeTaskDrawer } = useUIStore()
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Task[]>([])
+  const [showDropdown, setShowDropdown] = useState(false)
+
   useEffect(() => {
     fetchActive()
   }, [fetchActive])
@@ -27,6 +35,24 @@ export default function Layout() {
   useEffect(() => {
     document.title = isRunning ? `⏱ ${formatDurationA(elapsed)} - ChronoFlow` : 'ChronoFlow'
   }, [isRunning, elapsed])
+
+  useEffect(() => {
+    if (!searchQuery.trim()) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setSearchResults([])
+      return
+    }
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        const results = await searchTasks(searchQuery)
+        setSearchResults(results)
+      } catch (err) {
+        console.error("Search failed:", err)
+      }
+    }, 300)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [searchQuery])
 
   const handleLogout = async () => {
     window.location.href = '/login'
@@ -42,22 +68,98 @@ export default function Layout() {
           <div className="relative w-[320px]">
             <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#45464d] text-[18px]">search</span>
             <input
-              className="w-full bg-white border-none h-9 pl-10 pr-4 text-[14px] leading-[20px] rounded-lg focus:ring-1 focus:ring-[#0051d5] outline-none"
+              className="w-full bg-white border-none h-9 pl-10 pr-4 text-[14px] leading-[20px] rounded-lg focus:ring-1 focus:ring-[#0051d5] outline-none text-black"
               placeholder="Global Search..."
               type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value)
+                setShowDropdown(true)
+              }}
+              onFocus={() => setShowDropdown(true)}
             />
+            {/* Search Dropdown Overlay */}
+            {showDropdown && searchQuery.trim() !== '' && (
+              <div className="absolute top-[44px] left-0 w-full bg-white border border-[#c6c6cd] rounded-lg shadow-xl max-h-[300px] overflow-y-auto z-[100] custom-scrollbar">
+                {searchResults.length === 0 ? (
+                  <div className="p-4 text-[13px] text-[#45464d] italic">No tasks found</div>
+                ) : (
+                  <div className="py-1">
+                    {searchResults.map((task) => (
+                      <button
+                        key={task.id}
+                        onClick={() => {
+                          openTaskDrawer(task.id)
+                          setShowDropdown(false)
+                          setSearchQuery('')
+                        }}
+                        className="w-full text-left px-4 py-2.5 hover:bg-[#f2f4f7] border-b border-[#f2f4f7]/50 last:border-0 transition-colors flex flex-col gap-0.5"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="font-semibold text-[13px] text-black truncate max-w-[200px]">
+                            {task.code ? `[${task.code}] ` : ''}{task.title}
+                          </span>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-[#45464d]">
+                            {task.priority}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-[10px] text-[#45464d]">
+                          <span className="truncate max-w-[220px] font-medium text-[#0051d5]">
+                            {task.project_code ? `[${task.project_code}] ` : ''}{task.project_name || `Project #${task.project}`}
+                          </span>
+                          <span>•</span>
+                          <span className="bg-[#eceef1] px-1 rounded text-[9px] font-semibold">
+                            {task.column_name || 'No Stage'}
+                          </span>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {/* Click-outside back-drop layer to close search overlay */}
+            {showDropdown && (
+              <div 
+                className="fixed inset-0 z-[-1]" 
+                onClick={() => setShowDropdown(false)}
+              />
+            )}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button className="p-2 rounded-lg hover:bg-[#eceef1] transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-black">notifications</span>
-          </button>
-          <button className="p-2 rounded-lg hover:bg-[#eceef1] transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-black">help</span>
-          </button>
-          <button className="p-2 rounded-lg hover:bg-[#eceef1] transition-colors cursor-pointer">
-            <span className="material-symbols-outlined text-black">settings</span>
-          </button>
+          {isRunning ? (
+            <div className="flex items-center gap-3 bg-[#e8f0fe] border border-[#d2e3fc] px-3.5 py-1.5 rounded-lg shadow-sm">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <div className="flex flex-col text-left max-w-[200px]">
+                <span className="text-[10px] leading-[12px] font-bold text-[#1a73e8] uppercase tracking-wider">Active Timer</span>
+                <span className="text-[12px] font-semibold text-black truncate mt-0.5" title={activeSession?.task_title || 'Task'}>
+                  {activeSession?.task_code ? `[${activeSession.task_code}] ` : ''}{activeSession?.task_title || 'Task'}
+                </span>
+              </div>
+              <span className="text-[14px] font-mono font-bold text-[#1a73e8] bg-white px-2 py-0.5 rounded border border-[#d2e3fc]">
+                {formatDurationA(elapsed)}
+              </span>
+              <button
+                onClick={async () => {
+                  const stopTimerStore = useTimerStore.getState().stop
+                  await stopTimerStore()
+                }}
+                className="bg-[#ba1a1a] hover:bg-[#93000a] text-white px-2 py-1 text-[11px] font-bold rounded flex items-center gap-1 transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined text-[14px]">stop</span>
+                Stop
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 text-[#45464d] text-[12px] font-medium bg-[#f2f4f7] border border-[#c6c6cd]/30 px-3 py-1.5 rounded-lg">
+              <span className="w-1.5 h-1.5 rounded-full bg-[#c6c6cd]" />
+              <span>Timer Idle</span>
+            </div>
+          )}
           <div className="h-8 w-px bg-[#c6c6cd]/50 mx-2" />
           <div className="flex items-center gap-2 cursor-pointer hover:bg-[#e6e8eb] px-2 py-1 rounded-lg transition-all">
             <div className="w-8 h-8 rounded-full bg-[#dbe1ff] flex items-center justify-center text-[#0051d5] font-bold text-xs border border-[#c6c6cd]">
@@ -143,6 +245,13 @@ export default function Layout() {
           <span className="text-[11px] leading-[14px] tracking-[0.03em] font-medium text-[#45464d]">Server: Local</span>
         </div>
       </footer>
+
+      {taskDrawerOpen && selectedTaskId && (
+        <TaskDrawer
+          taskId={selectedTaskId}
+          onClose={closeTaskDrawer}
+        />
+      )}
     </div>
   )
 }

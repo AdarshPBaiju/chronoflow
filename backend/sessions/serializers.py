@@ -1,13 +1,16 @@
 from rest_framework import serializers
-from django.utils import timezone
 
 from .models import Session
 
 
 class SessionSerializer(serializers.ModelSerializer):
     task_title = serializers.CharField(source="task.title", read_only=True)
+    task_code = serializers.CharField(source="task.code", read_only=True)
     project_name = serializers.CharField(
         source="task.project.name", read_only=True
+    )
+    project_code = serializers.CharField(
+        source="task.project.code", read_only=True
     )
     project_color = serializers.CharField(
         source="task.project.color", read_only=True
@@ -20,8 +23,10 @@ class SessionSerializer(serializers.ModelSerializer):
             "id",
             "task",
             "task_title",
+            "task_code",
             "project_id",
             "project_name",
+            "project_code",
             "project_color",
             "start_time",
             "end_time",

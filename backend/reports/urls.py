@@ -11,4 +11,9 @@ urlpatterns = [
         views.ProjectReportView.as_view(),
         name="report-project",
     ),
+    path(
+        "detailed/",
+        views.DetailedReportView.as_view(),
+        name="report-detailed",
+    ),
 ]

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Task } from '../api/tasks'
-import { updateTask, getTasks } from '../api/tasks'
+import { updateTask, getTask } from '../api/tasks'
 import { getNotes, createNote, type Note } from '../api/notes'
 import { getSessions, type Session } from '../api/sessions'
 import { useTimerStore } from '../stores/timerStore'
@@ -8,10 +8,9 @@ import { formatDurationA, timeAgo } from '../lib/time'
 import { getColumnsByProject, type WorkflowColumn } from '../api/workflows'
 
 interface Props {
-  projectId: number
   taskId: number
   onClose: () => void
-  onUpdate: () => void
+  onUpdate?: () => void
 }
 
 const priorityLabel: Record<string, string> = {
@@ -59,7 +58,7 @@ function SessionRow({ session }: { session: Session }) {
   )
 }
 
-export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Props) {
+export default function TaskDrawer({ taskId, onClose, onUpdate }: Props) {
   const [task, setTask] = useState<Task | null>(null)
   const [sessions, setSessions] = useState<Session[]>([])
   const [notes, setNotes] = useState<Note[]>([])
@@ -85,24 +84,25 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
     let cancelled = false
 
     const loadData = async () => {
-      const [ts, ss, ns, cols] = await Promise.all([
-        getTasks(projectId),
-        getSessions(taskId),
-        getNotes(taskId),
-        getColumnsByProject(projectId),
-      ])
-      if (cancelled) return
-      const nextTask = ts.find((t) => t.id === taskId)
-      if (nextTask) {
-        setTask(nextTask)
-        setEditTitle(nextTask.title)
-        setEditColumn(nextTask.column || '')
-        setEditPriority(nextTask.priority)
-        setEditDescription(nextTask.description || '')
+      try {
+        const taskDetail = await getTask(taskId)
+        const [ss, ns, cols] = await Promise.all([
+          getSessions(taskId),
+          getNotes(taskId),
+          getColumnsByProject(taskDetail.project),
+        ])
+        if (cancelled) return
+        setTask(taskDetail)
+        setEditTitle(taskDetail.title)
+        setEditColumn(taskDetail.column || '')
+        setEditPriority(taskDetail.priority)
+        setEditDescription(taskDetail.description || '')
+        setSessions(ss)
+        setNotes(ns)
+        setColumns(cols)
+      } catch (err) {
+        console.error("Failed to load task details in drawer:", err)
       }
-      setSessions(ss)
-      setNotes(ns)
-      setColumns(cols)
     }
 
     void loadData()
@@ -110,7 +110,7 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
     return () => {
       cancelled = true
     }
-  }, [projectId, taskId, updateVersion])
+  }, [taskId, updateVersion])
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -124,13 +124,15 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
     })
     setTask(updated)
     setIsEditing(false)
-    onUpdate()
+    useTimerStore.getState().triggerUpdate()
+    onUpdate?.()
   }
 
   const handleArchive = async () => {
     if (task) {
       await updateTask(task.id, { is_archived: !task.is_archived })
-      onUpdate()
+      useTimerStore.getState().triggerUpdate()
+      onUpdate?.()
       onClose()
     }
   }
@@ -290,7 +292,7 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
                   <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${priorityColor[task.priority] || priorityColor.medium}`}>
                     {priorityLabel[task.priority] || 'Medium Priority'}
                   </span>
-                  <span className="text-[#45464d] font-mono text-[12px] tracking-tight">ID: TSK-{task.id}</span>
+                  <span className="text-[#45464d] font-mono text-[12px] tracking-tight">{task.code || `TSK-${task.id}`}</span>
                   {isThisTaskActive && (
                     <span className="flex items-center gap-1 text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
                       <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
@@ -300,7 +302,7 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
                 </div>
                 <h2 className="font-bold text-[24px] leading-[32px] text-black">{task.title}</h2>
                 <p className="text-[#45464d] text-[13px] mt-1">
-                  Created {createdDate} • Updated {updatedAgo}
+                  Project: <span className="font-semibold text-[#0051d5]">{task.project_code ? `[${task.project_code}] ` : ''}{task.project_name || `Project #${task.project}`}</span> • Created {createdDate} • Updated {updatedAgo}
                 </p>
               </div>
             </div>

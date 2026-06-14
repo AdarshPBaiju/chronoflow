@@ -2,6 +2,7 @@ import client from './client'
 
 export interface Project {
   id: number
+  code?: string
   name: string
   description: string
   color: string

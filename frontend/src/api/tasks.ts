@@ -3,7 +3,10 @@ import type { Session } from './sessions'
 
 export interface Task {
   id: number
+  code?: string
   project: number
+  project_name?: string
+  project_code?: string
   column: number | null
   column_name: string
   title: string
@@ -40,6 +43,16 @@ export async function getTasksByColumn(projectId: number, columnId: number): Pro
   const { data } = await client.get('/tasks/', {
     params: { project_id: projectId, column_id: columnId },
   })
+  return data
+}
+
+export async function getTask(id: number): Promise<Task> {
+  const { data } = await client.get(`/tasks/${id}/`)
+  return data
+}
+
+export async function searchTasks(query: string): Promise<Task[]> {
+  const { data } = await client.get('/tasks/', { params: { search: query } })
   return data
 }
 

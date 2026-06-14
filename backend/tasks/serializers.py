@@ -20,16 +20,21 @@ class TaskSerializer(serializers.ModelSerializer):
     total_time = serializers.SerializerMethodField()
     movements = TaskMovementSerializer(many=True, read_only=True)
     column_name = serializers.CharField(source="column.name", read_only=True)
+    project_name = serializers.CharField(source="project.name", read_only=True)
     sessions = SessionSerializer(many=True, read_only=True)
     task_start = serializers.SerializerMethodField()
     task_end = serializers.SerializerMethodField()
     is_active = serializers.SerializerMethodField()
+    project_code = serializers.CharField(source="project.code", read_only=True)
 
     class Meta:
         model = Task
         fields = [
             "id",
+            "code",
             "project",
+            "project_name",
+            "project_code",
             "column",
             "column_name",
             "title",
@@ -47,7 +52,7 @@ class TaskSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
         ]
-        read_only_fields = ["id", "created_at", "updated_at"]
+        read_only_fields = ["id", "code", "project_code", "created_at", "updated_at"]
 
     def get_today_time(self, obj):
         from datetime import date

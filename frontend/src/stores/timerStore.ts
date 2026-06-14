@@ -12,6 +12,7 @@ interface TimerState {
   stop: () => Promise<void>
   tick: () => void
   cleanup: () => void
+  triggerUpdate: () => void
 }
 
 export const useTimerStore = create<TimerState>((set, get) => {
@@ -82,6 +83,9 @@ export const useTimerStore = create<TimerState>((set, get) => {
     cleanup: () => {
       const { intervalId } = get()
       if (intervalId) clearInterval(intervalId)
+    },
+    triggerUpdate: () => {
+      set((s) => ({ updateVersion: s.updateVersion + 1 }))
     },
   }
 })

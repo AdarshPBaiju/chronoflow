@@ -5,7 +5,6 @@ import { getSessions, type Session } from '../api/sessions'
 import { useTimerStore } from '../stores/timerStore'
 import { useUIStore } from '../stores/uiStore'
 import { formatDurationA } from '../lib/time'
-import TaskDrawer from '../components/TaskDrawer'
 
 export default function TimerPage() {
   const [projects, setProjects] = useState<Project[]>([])
@@ -15,17 +14,13 @@ export default function TimerPage() {
   const [allSessions, setAllSessions] = useState<Session[]>([])
 
   const { isRunning, elapsed, activeSession, fetchActive, start, stop, updateVersion } = useTimerStore()
-  const { taskDrawerOpen, selectedTaskId, openTaskDrawer: openDrawer, closeTaskDrawer } = useUIStore()
+  const { openTaskDrawer: openDrawer } = useUIStore()
 
   const activeTask = activeSession?.task
   const activeProject = activeSession?.project_id
   const isThisTaskActive = isRunning && activeTask === selectedTask
 
   const activeProjectDetails = projects.find((p) => p.id === activeProject)
-  const selectedTaskDetails = tasks.find((t) => t.id === selectedTask)
-  const drawerProjectId =
-    selectedTaskDetails?.project ||
-    (selectedProject || activeProject || activeSession?.project_id || null)
 
   useEffect(() => {
     let cancelled = false
@@ -117,16 +112,7 @@ export default function TimerPage() {
     await stop()
   }
 
-  const refreshSelectedTaskData = async () => {
-    if (selectedProject) {
-      const refreshedTasks = await getTasks(selectedProject as number)
-      setTasks(refreshedTasks)
-    }
-    if (selectedTask) {
-      const refreshedSessions = await getSessions(selectedTask as number)
-      setAllSessions(refreshedSessions)
-    }
-  }
+
 
   const completedSeconds = allSessions
     .filter((s) => s.end_time)
@@ -390,15 +376,6 @@ export default function TimerPage() {
           )}
         </section>
       </div>
-
-      {taskDrawerOpen && selectedTaskId && drawerProjectId && (
-        <TaskDrawer
-          projectId={drawerProjectId}
-          taskId={selectedTaskId}
-          onClose={closeTaskDrawer}
-          onUpdate={refreshSelectedTaskData}
-        />
-      )}
     </div>
   )
 }

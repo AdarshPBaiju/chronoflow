@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from django.db import transaction
 
 from .models import Task, TaskMovement
-from .serializers import TaskSerializer, TaskMovementSerializer
+from .serializers import TaskSerializer
 
 
 class TaskViewSet(viewsets.ModelViewSet):
@@ -20,10 +20,14 @@ class TaskViewSet(viewsets.ModelViewSet):
         )
         project_id = self.request.query_params.get("project_id")
         column_id = self.request.query_params.get("column_id")
+        search = self.request.query_params.get("search")
         if project_id:
             qs = qs.filter(project_id=project_id)
         if column_id:
             qs = qs.filter(column_id=column_id)
+        if search:
+            from django.db.models import Q
+            qs = qs.filter(Q(title__icontains=search) | Q(description__icontains=search))
         return qs
 
     def perform_create(self, serializer):
