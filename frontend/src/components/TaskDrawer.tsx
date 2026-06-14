@@ -5,6 +5,7 @@ import { getNotes, createNote, type Note } from '../api/notes'
 import { getSessions, type Session } from '../api/sessions'
 import { useTimerStore } from '../stores/timerStore'
 import { formatDurationA, timeAgo } from '../lib/time'
+import { getColumnsByProject, type WorkflowColumn } from '../api/workflows'
 
 interface Props {
   projectId: number
@@ -64,6 +65,13 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
   const [notes, setNotes] = useState<Note[]>([])
   const [newNote, setNewNote] = useState('')
 
+  const [columns, setColumns] = useState<WorkflowColumn[]>([])
+  const [isEditing, setIsEditing] = useState(false)
+  const [editTitle, setEditTitle] = useState('')
+  const [editColumn, setEditColumn] = useState<number | ''>('')
+  const [editPriority, setEditPriority] = useState('medium')
+  const [editDescription, setEditDescription] = useState('')
+
   const isRunning = useTimerStore((s) => s.isRunning)
   const activeSession = useTimerStore((s) => s.activeSession)
   const elapsed = useTimerStore((s) => s.elapsed)
@@ -77,16 +85,24 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
     let cancelled = false
 
     const loadData = async () => {
-      const [ts, ss, ns] = await Promise.all([
+      const [ts, ss, ns, cols] = await Promise.all([
         getTasks(projectId),
         getSessions(taskId),
         getNotes(taskId),
+        getColumnsByProject(projectId),
       ])
       if (cancelled) return
       const nextTask = ts.find((t) => t.id === taskId)
-      if (nextTask) setTask(nextTask)
+      if (nextTask) {
+        setTask(nextTask)
+        setEditTitle(nextTask.title)
+        setEditColumn(nextTask.column || '')
+        setEditPriority(nextTask.priority)
+        setEditDescription(nextTask.description || '')
+      }
       setSessions(ss)
       setNotes(ns)
+      setColumns(cols)
     }
 
     void loadData()
@@ -95,6 +111,21 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
       cancelled = true
     }
   }, [projectId, taskId, updateVersion])
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!task) return
+    if (!editColumn) return
+    const updated = await updateTask(task.id, {
+      title: editTitle,
+      column: Number(editColumn),
+      priority: editPriority,
+      description: editDescription,
+    })
+    setTask(updated)
+    setIsEditing(false)
+    onUpdate()
+  }
 
   const handleArchive = async () => {
     if (task) {
@@ -159,6 +190,14 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
             <span className="font-medium text-xs">Back</span>
           </button>
           <div className="flex items-center gap-3">
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="px-4 py-1.5 text-xs font-medium border border-[#c6c6cd] rounded hover:bg-[#e6e8eb] transition-colors"
+              >
+                Edit
+              </button>
+            )}
             <button
               onClick={handleArchive}
               className="px-4 py-1.5 text-xs font-medium border border-[#c6c6cd] rounded hover:bg-[#e6e8eb] transition-colors"
@@ -168,30 +207,109 @@ export default function TaskDrawer({ projectId, taskId, onClose, onUpdate }: Pro
             <button onClick={onClose} className="material-symbols-outlined text-[#45464d] hover:text-[#0051d5] cursor-pointer p-1">close</button>
           </div>
         </div>
-        <div className="flex items-start justify-between">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${priorityColor[task.priority] || priorityColor.medium}`}>
-                {priorityLabel[task.priority] || 'Medium Priority'}
-              </span>
-              <span className="text-[#45464d] font-mono text-[12px] tracking-tight">ID: TSK-{task.id}</span>
-              {isThisTaskActive && (
-                <span className="flex items-center gap-1 text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  active
-                </span>
-              )}
+
+        {isEditing ? (
+          <form onSubmit={handleSave} className="space-y-4">
+            <div>
+              <label className="block text-[11px] font-bold text-[#45464d] uppercase mb-1">Title *</label>
+              <input
+                type="text"
+                value={editTitle}
+                onChange={(e) => setEditTitle(e.target.value)}
+                className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-black focus:ring-1 focus:ring-[#0051d5] outline-none"
+                required
+              />
             </div>
-            <h2 className="font-bold text-[24px] leading-[32px] text-black">{task.title}</h2>
-            <p className="text-[#45464d] text-[13px] mt-1">
-              Created {createdDate} • Updated {updatedAgo}
-            </p>
-          </div>
-        </div>
-        {task.description && (
-          <div className="mt-4 p-3 bg-[#f2f4f7] border border-[#c6c6cd] rounded text-[13px] text-[#45464d] whitespace-pre-wrap">
-            {task.description}
-          </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[11px] font-bold text-[#45464d] uppercase mb-1">Column/Stage *</label>
+                <select
+                  value={editColumn}
+                  onChange={(e) => setEditColumn(Number(e.target.value) || '')}
+                  className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-black focus:ring-1 focus:ring-[#0051d5] outline-none"
+                  required
+                >
+                  <option value="">Select column</option>
+                  {columns.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-[#45464d] uppercase mb-1">Priority</label>
+                <select
+                  value={editPriority}
+                  onChange={(e) => setEditPriority(e.target.value)}
+                  className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-black focus:ring-1 focus:ring-[#0051d5] outline-none"
+                >
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-[11px] font-bold text-[#45464d] uppercase mb-1">Description</label>
+              <textarea
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                rows={3}
+                className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] text-black focus:ring-1 focus:ring-[#0051d5] outline-none resize-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="bg-[#0051d5] text-white px-4 py-2 text-[12px] font-semibold rounded-lg hover:brightness-110"
+              >
+                Save
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (task) {
+                    setEditTitle(task.title)
+                    setEditColumn(task.column || '')
+                    setEditPriority(task.priority)
+                    setEditDescription(task.description || '')
+                  }
+                  setIsEditing(false)
+                }}
+                className="border border-[#c6c6cd] px-4 py-2 text-[12px] font-semibold text-[#45464d] rounded-lg hover:bg-[#eceef1]"
+              >
+                Cancel
+              </button>
+            </div>
+          </form>
+        ) : (
+          <>
+            <div className="flex items-start justify-between">
+              <div>
+                <div className="flex items-center gap-3 mb-2">
+                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded uppercase tracking-wider ${priorityColor[task.priority] || priorityColor.medium}`}>
+                    {priorityLabel[task.priority] || 'Medium Priority'}
+                  </span>
+                  <span className="text-[#45464d] font-mono text-[12px] tracking-tight">ID: TSK-{task.id}</span>
+                  {isThisTaskActive && (
+                    <span className="flex items-center gap-1 text-[10px] font-bold bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      active
+                    </span>
+                  )}
+                </div>
+                <h2 className="font-bold text-[24px] leading-[32px] text-black">{task.title}</h2>
+                <p className="text-[#45464d] text-[13px] mt-1">
+                  Created {createdDate} • Updated {updatedAgo}
+                </p>
+              </div>
+            </div>
+            {task.description && (
+              <div className="mt-4 p-3 bg-[#f2f4f7] border border-[#c6c6cd] rounded text-[13px] text-[#45464d] whitespace-pre-wrap">
+                {task.description}
+              </div>
+            )}
+          </>
         )}
       </div>
 

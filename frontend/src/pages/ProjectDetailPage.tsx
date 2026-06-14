@@ -113,9 +113,10 @@ export default function ProjectDetailPage() {
 
   const handleCreateTask = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!taskColumn) return
     await createTask({
       project: projectId,
-      column: taskColumn || null,
+      column: Number(taskColumn),
       title: taskTitle,
       priority: taskPriority,
     })
@@ -380,8 +381,9 @@ export default function ProjectDetailPage() {
                   value={taskColumn}
                   onChange={(e) => setTaskColumn(Number(e.target.value) || '')}
                   className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] leading-[20px] focus:ring-1 focus:ring-[#0051d5] outline-none"
+                  required
                 >
-                  <option value="">No column</option>
+                  <option value="">Select column</option>
                   {columns.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
@@ -494,8 +496,9 @@ export default function ProjectDetailPage() {
                   value={taskColumn}
                   onChange={(e) => setTaskColumn(Number(e.target.value) || '')}
                   className="w-full border border-[#c6c6cd] rounded-lg px-3 py-2 text-[14px] leading-[20px] focus:ring-1 focus:ring-[#0051d5] outline-none"
+                  required
                 >
-                  <option value="">No column</option>
+                  <option value="">Select column</option>
                   {columns.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
