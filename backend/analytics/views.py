@@ -1,0 +1,114 @@
+from django.db.models import Sum
+from rest_framework import generics, permissions
+from rest_framework.response import Response
+
+from sessions.models import Session
+from projects.models import Project
+from workflows.models import WorkflowColumn
+
+
+class TimeByStageView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        project_id = request.query_params.get("project_id")
+        if not project_id:
+            return Response({"error": "project_id required"}, status=400)
+
+        columns = WorkflowColumn.objects.filter(
+            project_id=project_id, project__user=request.user
+        )
+
+        data = []
+        for col in columns:
+            total = Session.objects.filter(
+                task__column=col, end_time__isnull=False
+            ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+            data.append({
+                "column_id": col.id,
+                "name": col.name,
+                "color": col.color,
+                "duration_seconds": total,
+            })
+
+        return Response(data)
+
+
+class TimeByTaskView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        project_id = request.query_params.get("project_id")
+        tasks_qs = Project.objects.get(
+            id=project_id, user=request.user
+        ).tasks.all() if project_id else Project.objects.filter(
+            user=request.user
+        ).first().tasks.all()
+
+        data = []
+        for task in tasks_qs:
+            total = Session.objects.filter(
+                task=task, end_time__isnull=False
+            ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+            data.append({
+                "task_id": task.id,
+                "title": task.title,
+                "duration_seconds": total,
+            })
+
+        data.sort(key=lambda x: x["duration_seconds"], reverse=True)
+        return Response(data)
+
+
+class TimeByProjectView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        projects = Project.objects.filter(user=request.user)
+        data = []
+        for proj in projects:
+            total = Session.objects.filter(
+                task__project=proj, end_time__isnull=False
+            ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+            data.append({
+                "project_id": proj.id,
+                "name": proj.name,
+                "color": proj.color,
+                "duration_seconds": total,
+            })
+        data.sort(key=lambda x: x["duration_seconds"], reverse=True)
+        return Response(data)
+
+
+class DashboardTotalsView(generics.GenericAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        from datetime import date, timedelta
+
+        today = date.today()
+        start_of_week = today - timedelta(days=today.weekday())
+
+        sessions_qs = Session.objects.filter(
+            task__project__user=request.user,
+            end_time__isnull=False,
+        )
+
+        today_seconds = sessions_qs.filter(start_time__date=today).aggregate(
+            total=Sum("duration_seconds")
+        )["total"] or 0
+
+        week_seconds = sessions_qs.filter(start_time__date__gte=start_of_week).aggregate(
+            total=Sum("duration_seconds")
+        )["total"] or 0
+
+        month_seconds = sessions_qs.filter(
+            start_time__year=today.year,
+            start_time__month=today.month,
+        ).aggregate(total=Sum("duration_seconds"))["total"] or 0
+
+        return Response({
+            "today_seconds": today_seconds,
+            "week_seconds": week_seconds,
+            "month_seconds": month_seconds,
+        })

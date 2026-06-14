@@ -1,0 +1,11 @@
+.env
+*.pyc
+__pycache__/
+node_modules/
+dist/
+*.sqlite3
+frontend/README.md
+frontend/public/favicon.svg
+frontend/public/icons.svg
+frontend/src/App.css
+frontend/src/assets/

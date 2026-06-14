@@ -1,0 +1,51 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    env_file:
+      - .env
+    environment:
+      - DJANGO_DEBUG=${DJANGO_DEBUG:-False}
+      - DJANGO_SECRET_KEY=${DJANGO_SECRET_KEY:-}
+      - DB_ENGINE=django.db.backends.postgresql
+      - DB_NAME=${DB_NAME:-chronoflow}
+      - DB_USER=${DB_USER:-chronoflow}
+      - DB_PASSWORD=${DB_PASSWORD:-chronoflow}
+      - DB_HOST=db
+      - DB_PORT=5432
+    depends_on:
+      - db
+    volumes:
+      - static_volume:/app/staticfiles
+
+  frontend:
+    build: ./frontend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+    depends_on:
+      - backend
+
+  db:
+    image: postgres:16-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=${DB_NAME:-chronoflow}
+      - POSTGRES_USER=${DB_USER:-chronoflow}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-chronoflow}
+
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "${NGINX_PORT:-80}:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
+      - static_volume:/static
+    depends_on:
+      - backend
+      - frontend
+
+volumes:
+  postgres_data:
+  static_volume:

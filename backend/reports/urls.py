@@ -1,0 +1,9 @@
+from django.urls import path
+
+from . import views
+
+urlpatterns = [
+    path("daily/", views.DailyReportView.as_view(), name="report-daily"),
+    path("weekly/", views.WeeklyReportView.as_view(), name="report-weekly"),
+    path("monthly/", views.MonthlyReportView.as_view(), name="report-monthly"),
+]
