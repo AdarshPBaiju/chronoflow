@@ -18,4 +18,4 @@ class NoteViewSet(viewsets.ModelViewSet):
         return qs
 
     def perform_create(self, serializer):
-        serializer.save()
+        serializer.save(user=self.request.user)

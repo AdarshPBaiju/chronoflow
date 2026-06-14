@@ -1,6 +1,6 @@
 .PHONY: dev dev-backend dev-frontend build migrate migrations shell
 .PHONY: test test-backend test-frontend lint lint-backend lint-frontend
-.PHONY: docker-up docker-down docker-build clean
+.PHONY: docker-up docker-down docker-build docker-migrate docker-migrations docker-createsuperuser docker-logs docker-test docker-shell clean
 
 # ── Development ──────────────────────────────────────────────────────────────
 
@@ -58,6 +58,24 @@ docker-down:
 
 docker-build:
 	docker compose build
+
+docker-migrate:
+	docker compose exec backend python manage.py migrate
+
+docker-migrations:
+	docker compose exec backend python manage.py makemigrations
+
+docker-createsuperuser:
+	docker compose exec backend python manage.py createsuperuser
+
+docker-logs:
+	docker compose logs -f
+
+docker-test:
+	docker compose exec backend pytest
+
+docker-shell:
+	docker compose exec backend python manage.py shell
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 

@@ -6,6 +6,7 @@ interface TimerState {
   isRunning: boolean
   elapsed: number
   intervalId: ReturnType<typeof setInterval> | null
+  updateVersion: number
   fetchActive: () => Promise<void>
   start: (taskId: number) => Promise<void>
   stop: () => Promise<void>
@@ -35,6 +36,7 @@ export const useTimerStore = create<TimerState>((set, get) => {
     isRunning: false,
     elapsed: 0,
     intervalId: null,
+    updateVersion: 0,
     fetchActive: async () => {
       try {
         const { active, session } = await getActiveSession()
@@ -42,31 +44,36 @@ export const useTimerStore = create<TimerState>((set, get) => {
           const elapsed = computeElapsed(session.start_time)
           set({ activeSession: session, isRunning: true, elapsed })
           startInterval()
+        } else {
+          set({ activeSession: null, isRunning: false, elapsed: 0 })
+          const { intervalId } = get()
+          if (intervalId) {
+            clearInterval(intervalId)
+            set({ intervalId: null })
+          }
         }
       } catch {
         // silently fail
       }
     },
     start: async (taskId) => {
-      try {
-        const session = await startTimer(taskId)
-        const elapsed = computeElapsed(session.start_time)
-        set({ activeSession: session, isRunning: true, elapsed })
-        startInterval()
-      } catch {
-        const { active, session } = await getActiveSession()
-        if (active && session) {
-          const elapsed = computeElapsed(session.start_time)
-          set({ activeSession: session, isRunning: true, elapsed })
-          startInterval()
-        }
+      const current = get()
+      if (current.isRunning && current.activeSession?.task === taskId) return
+      if (current.isRunning) {
+        if (current.intervalId) clearInterval(current.intervalId)
+        await stopTimer()
       }
+      await startTimer(taskId)
+      await get().fetchActive()
+      set((s) => ({ updateVersion: s.updateVersion + 1 }))
     },
     stop: async () => {
-      const { intervalId } = get()
+      const { intervalId, isRunning, activeSession } = get()
+      if (!isRunning && !activeSession) return
       if (intervalId) clearInterval(intervalId)
       await stopTimer()
-      set({ activeSession: null, isRunning: false, elapsed: 0, intervalId: null })
+      await get().fetchActive()
+      set((s) => ({ updateVersion: s.updateVersion + 1 }))
     },
     tick: () => {
       const s = get()

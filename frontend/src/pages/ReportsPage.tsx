@@ -4,9 +4,39 @@ import TimeDisplay from '../components/TimeDisplay'
 
 type ReportType = 'daily' | 'weekly' | 'monthly'
 
+interface ProjectDuration {
+  name: string
+  duration_seconds: number
+}
+
+interface DayDuration {
+  date: string
+  duration_seconds: number
+}
+
+interface DailyReport {
+  date: string
+  projects: ProjectDuration[]
+  total_seconds: number
+}
+
+interface WeeklyReport {
+  days: DayDuration[]
+  total_seconds: number
+}
+
+interface MonthlyReport {
+  year: number
+  month: number
+  projects: ProjectDuration[]
+  total_seconds: number
+}
+
+type ReportData = DailyReport | WeeklyReport | MonthlyReport
+
 export default function ReportsPage() {
   const [type, setType] = useState<ReportType>('daily')
-  const [data, setData] = useState<any>(null)
+  const [data, setData] = useState<ReportData | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -39,8 +69,8 @@ export default function ReportsPage() {
         <div className="bg-white rounded-lg shadow p-4">
           {type === 'daily' && (
             <div>
-              <p className="text-sm text-gray-500 mb-2">{data.date}</p>
-              {data.projects?.map((p: any) => (
+              <p className="text-sm text-gray-500 mb-2">{(data as DailyReport).date}</p>
+              {(data as DailyReport).projects.map((p) => (
                 <div key={p.name} className="flex justify-between py-1">
                   <span>{p.name}</span>
                   <TimeDisplay seconds={p.duration_seconds} />
@@ -55,7 +85,7 @@ export default function ReportsPage() {
           )}
           {type === 'weekly' && (
             <div>
-              {data.days?.map((d: any) => (
+              {(data as WeeklyReport).days.map((d) => (
                 <div key={d.date} className="flex justify-between py-1">
                   <span>{new Date(d.date).toLocaleDateString('en', { weekday: 'short' })}</span>
                   <TimeDisplay seconds={d.duration_seconds} />
@@ -70,8 +100,8 @@ export default function ReportsPage() {
           )}
           {type === 'monthly' && (
             <div>
-              <p className="text-sm text-gray-500 mb-2">{data.month}/{data.year}</p>
-              {data.projects?.map((p: any) => (
+              <p className="text-sm text-gray-500 mb-2">{(data as MonthlyReport).month}/{(data as MonthlyReport).year}</p>
+              {(data as MonthlyReport).projects.map((p) => (
                 <div key={p.name} className="flex justify-between py-1">
                   <span>{p.name}</span>
                   <TimeDisplay seconds={p.duration_seconds} />

@@ -19,7 +19,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     if (!user && loading) {
       fetchUser()
     }
-  }, [])
+  }, [fetchUser, loading, user])
 
   if (loading && !user) return <div className="min-h-screen flex items-center justify-center">Loading...</div>
   if (!user) return <Navigate to="/login" replace />
@@ -43,7 +43,7 @@ export default function App() {
         >
           <Route index element={<DashboardPage />} />
           <Route path="projects" element={<ProjectListPage />} />
-          <Route path="projects/:id" element={<ProjectDetailPage />} />
+          <Route path="projects/:id/*" element={<ProjectDetailPage />} />
           <Route path="reports" element={<ReportsPage />} />
           <Route path="timer" element={<TimerPage />} />
         </Route>

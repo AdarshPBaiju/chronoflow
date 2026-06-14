@@ -8,7 +8,7 @@ export default function TimerWidget() {
   useEffect(() => {
     fetchActive()
     return () => useTimerStore.getState().cleanup()
-  }, [])
+  }, [fetchActive])
 
   if (!isRunning || !activeSession) return null
 

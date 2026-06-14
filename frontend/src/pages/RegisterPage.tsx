@@ -2,6 +2,16 @@ import { useState } from 'react'
 import { useNavigate, Link } from 'react-router-dom'
 import { useAuthStore } from '../stores/authStore'
 
+interface ApiError {
+  response?: {
+    data?: {
+      email?: string[]
+      password?: string[]
+      detail?: string
+    }
+  }
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -15,10 +25,11 @@ export default function RegisterPage() {
     try {
       await register(email, password)
       navigate('/')
-    } catch (err: any) {
-      const msg = err.response?.data?.email?.[0]
-        || err.response?.data?.password?.[0]
-        || err.response?.data?.detail
+    } catch (err: unknown) {
+      const apiError = err as ApiError
+      const msg = apiError.response?.data?.email?.[0]
+        || apiError.response?.data?.password?.[0]
+        || apiError.response?.data?.detail
         || 'Registration failed'
       setError(msg)
     }

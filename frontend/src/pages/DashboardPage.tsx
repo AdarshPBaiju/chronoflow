@@ -79,7 +79,7 @@ export default function DashboardPage() {
             return (
               <div
                 key={proj.id}
-                onClick={() => navigate(`/projects/${proj.id}`)}
+                onClick={() => navigate(`/projects/${proj.id}/overview`)}
                 className="bg-white rounded-lg shadow p-4 cursor-pointer hover:shadow-md transition-shadow"
               >
                 <div className="flex items-center justify-between mb-2">

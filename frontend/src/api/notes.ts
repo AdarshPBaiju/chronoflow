@@ -3,6 +3,8 @@ import client from './client'
 export interface Note {
   id: number
   task: number
+  user: number | null
+  user_name: string
   content: string
   created_at: string
 }
