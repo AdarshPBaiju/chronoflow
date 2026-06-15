@@ -85,6 +85,7 @@ class DashboardTotalsView(generics.GenericAPIView):
 
     def get(self, request):
         from datetime import date, timedelta
+        from django.db.models import Count
 
         today = date.today()
         start_of_week = today - timedelta(days=today.weekday())
@@ -129,10 +130,53 @@ class DashboardTotalsView(generics.GenericAPIView):
                 "year": p_year,
             })
 
+        days_param = request.query_params.get("days", "14")
+        try:
+            num_days = max(1, min(int(days_param), 365))
+        except ValueError:
+            num_days = 14
+
+        start_date = today - timedelta(days=num_days - 1)
+        raw = (
+            sessions_qs
+            .filter(start_time__date__gte=start_date)
+            .values("start_time__date")
+            .annotate(
+                duration_seconds=Sum("duration_seconds"),
+                session_count=Count("id"),
+            )
+            .order_by("start_time__date")
+        )
+
+        daily_map = {}
+        for row in raw:
+            daily_map[str(row["start_time__date"])] = {
+                "duration_seconds": row["duration_seconds"],
+                "session_count": row["session_count"],
+            }
+
+        daily_totals = []
+        for i in range(num_days):
+            d = start_date + timedelta(days=i)
+            ds = str(d)
+            if ds in daily_map:
+                daily_totals.append({
+                    "date": ds,
+                    "duration_seconds": daily_map[ds]["duration_seconds"],
+                    "session_count": daily_map[ds]["session_count"],
+                })
+            else:
+                daily_totals.append({
+                    "date": ds,
+                    "duration_seconds": 0,
+                    "session_count": 0,
+                })
+
         return Response({
             "today_seconds": today_seconds,
             "week_seconds": week_seconds,
             "month_seconds": month_seconds,
             "year_seconds": year_seconds,
             "projects": projects_data,
+            "daily_totals": daily_totals,
         })

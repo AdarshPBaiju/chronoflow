@@ -25,6 +25,15 @@ migrations:
 shell:
 	python backend/manage.py shell
 
+seed:
+	python backend/manage.py seed_data
+
+seed-heavy:
+	python backend/manage.py seed_data --heavy
+
+seed-reset:
+	python backend/manage.py seed_data --reset --heavy
+
 # ── Testing ──────────────────────────────────────────────────────────────────
 
 test-backend:
@@ -76,6 +85,15 @@ docker-test:
 
 docker-shell:
 	docker compose exec backend python manage.py shell
+
+docker-seed:
+	docker compose exec backend python manage.py seed_data
+
+docker-seed-heavy:
+	docker compose exec backend python manage.py seed_data --heavy
+
+docker-seed-reset:
+	docker compose exec backend python manage.py seed_data --reset --heavy
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 

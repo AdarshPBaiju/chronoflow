@@ -1,11 +1,18 @@
 import client from './client'
 
+export interface DailyTotal {
+  date: string
+  duration_seconds: number
+  session_count: number
+}
+
 export interface DashboardTotals {
   today_seconds: number
   week_seconds: number
   month_seconds: number
   year_seconds: number
   projects: ProjectTime[]
+  daily_totals: DailyTotal[]
 }
 
 export interface ProjectTime {
