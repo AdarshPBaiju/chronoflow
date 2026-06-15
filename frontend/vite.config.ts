@@ -12,4 +12,12 @@ export default defineConfig({
       },
     },
   },
+  optimizeDeps: {
+    include: ['pako'],
+  },
+  build: {
+    commonjsOptions: {
+      include: [/pako/, /node_modules/],
+    },
+  },
 })
