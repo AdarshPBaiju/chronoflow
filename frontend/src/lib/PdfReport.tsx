@@ -15,6 +15,10 @@ const C = {
   gray: '#45464d',
   border: '#c6c6cd',
   white: '#ffffff',
+  green: '#16a34a',
+  amber: '#d97706',
+  purple: '#7c3aed',
+  teal: '#0d9488',
 }
 
 const s = StyleSheet.create({
@@ -28,6 +32,12 @@ const s = StyleSheet.create({
   summaryBox: { flex: 1, backgroundColor: C.lightBg, paddingVertical: 10, paddingHorizontal: 8, alignItems: 'center' },
   summaryLabel: { fontSize: 7, color: C.gray, marginBottom: 2, textTransform: 'uppercase' as const },
   summaryValue: { fontSize: 14, fontWeight: 'bold' },
+  chartTitle: { fontSize: 9, fontWeight: 'bold', color: C.gray, marginTop: 8, marginBottom: 4, marginLeft: 4 },
+  barRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 2, paddingHorizontal: 4 },
+  barLabel: { fontSize: 7, width: 70, marginRight: 4 },
+  barTrack: { flex: 1, height: 10, backgroundColor: C.lightBg },
+  barFill: { height: 10 },
+  barValue: { fontSize: 7, width: 44, textAlign: 'right' as const },
   projectBox: { marginTop: 10, marginBottom: 8 },
   projectHeader: { backgroundColor: C.lightBg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 6, paddingHorizontal: 8 },
   projectName: { fontSize: 11, fontWeight: 'bold' },
@@ -39,13 +49,31 @@ const s = StyleSheet.create({
   thText: { fontSize: 7, fontWeight: 'bold', color: C.white },
   tdText: { fontSize: 8 },
   stageDot: { width: 6, height: 6, borderRadius: 3, marginRight: 6 },
-  flexRow: { flexDirection: 'row', alignItems: 'center' },
-  textRight: { textAlign: 'right' as const },
   footer: { position: 'absolute', bottom: 20, left: 30, right: 30, fontSize: 7, color: C.gray, textAlign: 'center' as const, borderTopWidth: 1, borderTopColor: C.border, paddingTop: 6 },
 })
 
 function StageDot({ color }: { color: string }) {
   return <View style={[s.stageDot, { backgroundColor: color }]} />
+}
+
+const chartColors = [C.primary, C.green, C.amber, C.purple, C.teal, '#dc2626', '#0891b2', '#d946ef']
+
+function TimeBarChart({ data, title }: { data: { label: string; value: number; color?: string }[]; title: string }) {
+  const maxVal = Math.max(...data.map((d) => d.value), 1)
+  return (
+    <View>
+      <Text style={s.chartTitle}>{title}</Text>
+      {data.map((d, i) => (
+        <View key={d.label} style={s.barRow}>
+          <Text style={s.barLabel}>{d.label}</Text>
+          <View style={s.barTrack}>
+            <View style={[s.barFill, { width: `${(d.value / maxVal) * 100}%`, backgroundColor: d.color || chartColors[i % chartColors.length] }]} />
+          </View>
+          <Text style={s.barValue}>{fmt(d.value)}</Text>
+        </View>
+      ))}
+    </View>
+  )
 }
 
 export default function PdfReport({ data }: { data: DetailedReport }) {
@@ -86,6 +114,24 @@ export default function PdfReport({ data }: { data: DetailedReport }) {
           ))}
         </View>
 
+        {data.projects.length > 1 && (
+          <TimeBarChart
+            title="Time by Project"
+            data={data.projects.map((p) => ({ label: p.name, value: p.total_seconds, color: p.color || C.primary }))}
+          />
+        )}
+
+        {data.daily_totals.length > 1 && (
+          <TimeBarChart
+            title="Daily Trend"
+            data={data.daily_totals.map((d) => ({
+              label: new Date(d.date).toLocaleDateString('en', { month: 'short', day: 'numeric' }),
+              value: d.duration_seconds,
+              color: C.primary,
+            }))}
+          />
+        )}
+
         <Text style={s.sectionTitle}>Project Breakdown</Text>
 
         {data.projects.map((project) => (
@@ -95,9 +141,15 @@ export default function PdfReport({ data }: { data: DetailedReport }) {
               <Text style={s.projectTime}>{fmt(project.total_seconds)}</Text>
             </View>
 
+            {project.stages.length > 1 && (
+              <TimeBarChart
+                title="Stages"
+                data={project.stages.map((st) => ({ label: st.name, value: st.duration_seconds, color: st.color || C.primary }))}
+              />
+            )}
+
             {project.stages.length > 0 && (
               <View wrap={false}>
-                <Text style={s.subTableTitle}>Stages</Text>
                 <View style={s.tableHeader}>
                   <View style={{ width: '50%', flexDirection: 'row', alignItems: 'center' }}><Text style={s.thText}>Stage</Text></View>
                   <View style={{ width: '30%' }}><Text style={[s.thText, { textAlign: 'right' }]}>Time</Text></View>

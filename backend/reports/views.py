@@ -211,6 +211,7 @@ class DetailedReportView(generics.GenericAPIView):
         start_date = request.query_params.get("start_date")
         end_date = request.query_params.get("end_date")
         project_id = request.query_params.get("project_id")
+        project_ids = request.query_params.get("project_ids")
 
         sessions = Session.objects.filter(
             task__project__user=request.user,
@@ -223,6 +224,10 @@ class DetailedReportView(generics.GenericAPIView):
             sessions = sessions.filter(start_time__date__lte=end_date)
         if project_id:
             sessions = sessions.filter(task__project_id=project_id)
+        if project_ids:
+            ids = [int(x) for x in project_ids.split(",") if x.strip().isdigit()]
+            if ids:
+                sessions = sessions.filter(task__project_id__in=ids)
 
         total_seconds = sessions.aggregate(total=Sum("duration_seconds"))["total"] or 0
         total_sessions = sessions.count()

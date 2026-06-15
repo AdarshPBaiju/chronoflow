@@ -107,6 +107,7 @@ export async function getDetailedReport(params?: {
   start_date?: string
   end_date?: string
   project_id?: number
+  project_ids?: string
 }): Promise<DetailedReport> {
   const { data } = await client.get('/reports/detailed/', { params })
   return data
