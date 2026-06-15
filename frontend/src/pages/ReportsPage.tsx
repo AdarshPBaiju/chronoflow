@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
+import { PDFDownloadLink } from '@react-pdf/renderer'
 import { getDailyReport, getWeeklyReport, getMonthlyReport, getDetailedReport } from '../api/reports'
-import { generatePdfReport } from '../lib/generatePdfReport'
+import type { DetailedReport } from '../api/reports'
+import PdfReport from '../lib/PdfReport'
 import TimeDisplay from '../components/TimeDisplay'
 
 type ReportType = 'daily' | 'weekly' | 'monthly'
@@ -39,7 +41,7 @@ type ReportData = DailyReport | WeeklyReport | MonthlyReport
 export default function ReportsPage() {
   const [type, setType] = useState<ReportType>('daily')
   const [data, setData] = useState<ReportData | null>(null)
-  const [exporting, setExporting] = useState(false)
+  const [pdfData, setPdfData] = useState<DetailedReport | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -52,29 +54,32 @@ export default function ReportsPage() {
     fetchData()
   }, [type])
 
-  const handleExportPdf = async () => {
-    setExporting(true)
-    try {
-      const detailed = await getDetailedReport()
-      await generatePdfReport(detailed)
-    } finally {
-      setExporting(false)
-    }
+  const handleGeneratePdf = () => {
+    getDetailedReport().then(setPdfData)
   }
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-black">Reports</h1>
-        {data && (
+        {data && !pdfData && (
           <button
-            onClick={handleExportPdf}
-            disabled={exporting}
-            className="flex items-center gap-1.5 bg-[#0051d5] hover:bg-[#003da6] disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer shadow-md"
+            onClick={handleGeneratePdf}
+            className="flex items-center gap-1.5 bg-[#0051d5] hover:bg-[#003da6] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer shadow-md"
           >
             <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
-            {exporting ? 'Generating PDF...' : 'Export as PDF'}
+            Export as PDF
           </button>
+        )}
+        {pdfData && (
+          <PDFDownloadLink
+            document={<PdfReport data={pdfData} />}
+            fileName={`chronoflow-report-${pdfData.period.start_date}-${pdfData.period.end_date}.pdf`}
+            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-md"
+          >
+            <span className="material-symbols-outlined text-[18px]">download_done</span>
+            Download PDF
+          </PDFDownloadLink>
         )}
       </div>
 
@@ -82,7 +87,7 @@ export default function ReportsPage() {
         {(['daily', 'weekly', 'monthly'] as ReportType[]).map((t) => (
           <button
             key={t}
-            onClick={() => setType(t)}
+            onClick={() => { setType(t); setPdfData(null) }}
             className={`px-4 py-2 rounded text-sm ${type === t ? 'bg-indigo-500 text-white' : 'bg-gray-200'}`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
