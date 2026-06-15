@@ -39,7 +39,7 @@ client.interceptors.response.use(
         err.config._retry = true
         try {
           const { data } = await axios.post('/api/auth/refresh/', { refresh })
-          setTokens(data.access, refresh)
+          setTokens(data.access, data.refresh)
           err.config.headers.Authorization = `Bearer ${data.access}`
           return client(err.config)
         } catch {

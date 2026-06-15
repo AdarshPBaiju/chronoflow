@@ -35,6 +35,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   setUser: (user) => set({ user }),
   setProfile: (profile) => set({ profile }),
   login: async (email, password) => {
+    clearTokens()
     const { data } = await client.post('/auth/login/', { email, password })
     setTokens(data.access, data.refresh)
     const user = await getMe()
@@ -42,6 +43,7 @@ export const useAuthStore = create<AuthState>((set) => ({
     set({ user, profile, loading: false })
   },
   register: async (email, password) => {
+    clearTokens()
     const { data } = await client.post('/auth/register/', { email, password })
     setTokens(data.access, data.refresh)
     const profile = await getProfile()

@@ -4,9 +4,7 @@ import { getProject, updateProject, deleteProject, type Project } from '../api/p
 import { getTimeByStage } from '../api/analytics'
 import { createColumn, getColumnsByProject, type WorkflowColumn } from '../api/workflows'
 import { createTask, getTasks, type Task } from '../api/tasks'
-import { PDFDownloadLink } from '@react-pdf/renderer'
 import { getProjectReport, getDetailedReport, type ProjectReport } from '../api/reports'
-import PdfReport from '../lib/PdfReport'
 import { useTimerStore } from '../stores/timerStore'
 import KanbanBoard from '../components/KanbanBoard'
 import TimeDisplay from '../components/TimeDisplay'
@@ -39,7 +37,7 @@ export default function ProjectDetailPage() {
   const [refreshTrigger, setRefreshTrigger] = useState(0)
   const [allTasks, setAllTasks] = useState<Task[]>([])
   const [projectReport, setProjectReport] = useState<ProjectReport | null>(null)
-  const [pdfReportData, setPdfReportData] = useState<Awaited<ReturnType<typeof getDetailedReport>> | null>(null)
+  const [exportingPdf, setExportingPdf] = useState(false)
 
   const elapsed = useTimerStore((s) => s.elapsed)
   const isRunning = useTimerStore((s) => s.isRunning)
@@ -157,8 +155,24 @@ export default function ProjectDetailPage() {
   const completedTasks = allTasks.filter((t) => t.column_name && columns.find((c) => c.name === t.column_name && c.is_completed)).length
   const completedPct = allTasks.length > 0 ? Math.round((completedTasks / allTasks.length) * 100) : 0
 
-  const handleExportPdf = () => {
-    getDetailedReport({ project_id: projectId }).then(setPdfReportData)
+  const handleExportPdf = async () => {
+    setExportingPdf(true)
+    try {
+      const report = await getDetailedReport({ project_id: projectId })
+      const [{ default: PdfReport }, { pdf }] = await Promise.all([
+        import('../lib/PdfReport'),
+        import('@react-pdf/renderer'),
+      ])
+      const blob = await pdf(<PdfReport data={report} />).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `chronoflow-report-project-${projectId}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExportingPdf(false)
+    }
   }
 
   const tabs: { key: Tab; label: string }[] = [
@@ -237,24 +251,14 @@ export default function ProjectDetailPage() {
               )}
             </div>
           )}
-          {!pdfReportData ? (
-            <button
-              onClick={handleExportPdf}
-              className="bg-white border border-[#c6c6cd] px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] text-black flex items-center gap-2 rounded-lg hover:bg-[#eceef1] transition-all"
-            >
-              <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
-              Export as PDF
-            </button>
-          ) : (
-            <PDFDownloadLink
-              document={<PdfReport data={pdfReportData} />}
-              fileName={`chronoflow-report-project-${projectId}.pdf`}
-              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] flex items-center gap-2 rounded-lg shadow-sm transition-all"
-            >
-              <span className="material-symbols-outlined text-[18px]">download_done</span>
-              Download PDF
-            </PDFDownloadLink>
-          )}
+          <button
+            onClick={handleExportPdf}
+            disabled={exportingPdf}
+            className="bg-white border border-[#c6c6cd] px-4 py-2 text-[12px] leading-[16px] font-semibold tracking-[0.02em] text-black flex items-center gap-2 rounded-lg hover:bg-[#eceef1] disabled:opacity-50 transition-all"
+          >
+            <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
+            {exportingPdf ? 'Generating...' : 'Export as PDF'}
+          </button>
         </div>
       </div>
 

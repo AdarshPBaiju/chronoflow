@@ -1,8 +1,5 @@
-import { useEffect, useState } from 'react'
-import { PDFDownloadLink } from '@react-pdf/renderer'
+import { useEffect, useState, useCallback } from 'react'
 import { getDailyReport, getWeeklyReport, getMonthlyReport, getDetailedReport } from '../api/reports'
-import type { DetailedReport } from '../api/reports'
-import PdfReport from '../lib/PdfReport'
 import TimeDisplay from '../components/TimeDisplay'
 
 type ReportType = 'daily' | 'weekly' | 'monthly'
@@ -41,7 +38,7 @@ type ReportData = DailyReport | WeeklyReport | MonthlyReport
 export default function ReportsPage() {
   const [type, setType] = useState<ReportType>('daily')
   const [data, setData] = useState<ReportData | null>(null)
-  const [pdfData, setPdfData] = useState<DetailedReport | null>(null)
+  const [exporting, setExporting] = useState(false)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -54,32 +51,42 @@ export default function ReportsPage() {
     fetchData()
   }, [type])
 
-  const handleGeneratePdf = () => {
-    getDetailedReport().then(setPdfData)
-  }
+  const handleExportPdf = useCallback(async () => {
+    setExporting(true)
+    try {
+      const report = await getDetailedReport()
+      const [{ default: PdfReport }, { pdf }] = await Promise.all([
+        import('../lib/PdfReport'),
+        import('@react-pdf/renderer'),
+      ])
+      const blob = await pdf(<PdfReport data={report} />).toBlob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const periodStr = `${report.period.start_date}-${report.period.end_date}`.replace(/[/:]/g, '-')
+      a.download = `chronoflow-report-${periodStr}.pdf`
+      a.click()
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(false)
+    }
+  }, [])
 
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-black">Reports</h1>
-        {data && !pdfData && (
+        {data && (
           <button
-            onClick={handleGeneratePdf}
-            className="flex items-center gap-1.5 bg-[#0051d5] hover:bg-[#003da6] text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer shadow-md"
+            onClick={handleExportPdf}
+            disabled={exporting}
+            className="flex items-center gap-1.5 bg-[#0051d5] hover:bg-[#003da6] disabled:opacity-50 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all cursor-pointer shadow-md"
           >
-            <span className="material-symbols-outlined text-[18px]">download_for_offline</span>
-            Export as PDF
+            <span className="material-symbols-outlined text-[18px]">
+              {exporting ? 'hourglass_top' : 'download_for_offline'}
+            </span>
+            {exporting ? 'Generating...' : 'Export as PDF'}
           </button>
-        )}
-        {pdfData && (
-          <PDFDownloadLink
-            document={<PdfReport data={pdfData} />}
-            fileName={`chronoflow-report-${pdfData.period.start_date}-${pdfData.period.end_date}.pdf`}
-            className="flex items-center gap-1.5 bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-semibold transition-all shadow-md"
-          >
-            <span className="material-symbols-outlined text-[18px]">download_done</span>
-            Download PDF
-          </PDFDownloadLink>
         )}
       </div>
 
@@ -87,7 +94,7 @@ export default function ReportsPage() {
         {(['daily', 'weekly', 'monthly'] as ReportType[]).map((t) => (
           <button
             key={t}
-            onClick={() => { setType(t); setPdfData(null) }}
+            onClick={() => { setType(t); setData(null) }}
             className={`px-4 py-2 rounded text-sm ${type === t ? 'bg-indigo-500 text-white' : 'bg-gray-200'}`}
           >
             {t.charAt(0).toUpperCase() + t.slice(1)}
