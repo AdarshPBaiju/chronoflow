@@ -1,9 +1,37 @@
 from django.contrib.auth import get_user_model
+from django.contrib.auth.backends import ModelBackend
 from rest_framework import serializers
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 from .models import Profile
 
 User = get_user_model()
+
+
+class EmailBackend(ModelBackend):
+    """Authenticate using email address instead of username."""
+
+    def authenticate(self, request, email=None, password=None, **kwargs):
+        if email is None:
+            return None
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            User().set_password(password)
+            return None
+        if user.check_password(password) and self.user_can_authenticate(user):
+            return user
+        return None
+
+
+class EmailTokenObtainPairSerializer(TokenObtainPairSerializer):
+    username_field = "email"
+
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        token["email"] = user.email
+        return token
 
 
 class UserSerializer(serializers.ModelSerializer):

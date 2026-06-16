@@ -1,6 +1,6 @@
-.PHONY: dev dev-backend dev-frontend build migrate migrations shell
+.PHONY: dev dev-backend dev-frontend build migrate migrations shell reset-password
 .PHONY: test test-backend test-frontend lint lint-backend lint-frontend
-.PHONY: docker-up docker-down docker-build docker-migrate docker-migrations docker-createsuperuser docker-logs docker-test docker-shell clean
+.PHONY: docker-up docker-down docker-build docker-migrate docker-migrations docker-createsuperuser docker-logs docker-test docker-shell docker-reset-password clean
 
 # ── Development ──────────────────────────────────────────────────────────────
 
@@ -33,6 +33,9 @@ seed-heavy:
 
 seed-reset:
 	python backend/manage.py seed_data --reset --heavy
+
+reset-password:
+	python backend/manage.py reset_password $(EMAIL) $(PASSWORD)
 
 # ── Testing ──────────────────────────────────────────────────────────────────
 
@@ -94,6 +97,9 @@ docker-seed-heavy:
 
 docker-seed-reset:
 	docker compose exec backend python manage.py seed_data --reset --heavy
+
+docker-reset-password:
+	docker compose exec backend python manage.py reset_password $(EMAIL) $(PASSWORD)
 
 # ── Cleanup ──────────────────────────────────────────────────────────────────
 

@@ -2,11 +2,17 @@ from django.contrib.auth import get_user_model
 from rest_framework import generics, permissions, status
 from rest_framework.response import Response
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework_simplejwt.views import TokenObtainPairView
 
 from .models import Profile
-from .serializers import ProfileSerializer, RegisterSerializer, UserSerializer
+from .serializers import EmailTokenObtainPairSerializer, ProfileSerializer, RegisterSerializer, UserSerializer
 
 User = get_user_model()
+
+
+class LoginView(TokenObtainPairView):
+    """Login with email and password to obtain JWT tokens."""
+    serializer_class = EmailTokenObtainPairSerializer
 
 
 class RegisterView(generics.CreateAPIView):
